@@ -18,7 +18,7 @@ local Section = Tab:CreateSection("Auto Nightmare Booster Chest")
 
 local ToggleSkip = Tab:CreateToggle({
     Name = "Skip Animation (Instant)",
-    CurrentValue = true,
+    CurrentValue = false,
     Flag = "SkipAnim",
     Callback = function(Value)
         getgenv().SkipEnabled = Value
@@ -32,7 +32,7 @@ local ToggleSkip = Tab:CreateToggle({
 
 local ToggleAuto = Tab:CreateToggle({
     Name = "Auto Open 5x Nightmare Booster",
-    CurrentValue = true,
+    CurrentValue = false,
     Flag = "AutoOpen",
     Callback = function(Value)
         getgenv().AutoEnabled = Value
