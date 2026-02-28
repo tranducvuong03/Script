@@ -1,4 +1,3 @@
--- My Simple GUI - No Library, chỉ built-in Roblox
 -- Tạo bởi: B - Dungeon Heroes Auto Chest
 
 local player = game.Players.LocalPlayer
