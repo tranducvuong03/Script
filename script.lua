@@ -1,9 +1,16 @@
+-- CLEAR OLD RAYFIELD (fix multiple GUI + toggle không click)
+for _, gui in pairs(game:GetService("CoreGui"):GetChildren()) do
+    if gui:IsA("ScreenGui") and (gui.Name:find("Rayfield") or gui.Name:find("RayfieldInterfaceSuite")) then
+        gui:Destroy()
+    end
+end
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "Dungeon Heroes Hub",
+    Name = "Dungeon Heroes Hub v2 (Fixed)",
     LoadingTitle = "DH Auto Chest",
-    LoadingSubtitle = "by Grok",
+    LoadingSubtitle = "by Grok - Optimized",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "DH_Hub",
@@ -13,105 +20,99 @@ local Window = Rayfield:CreateWindow({
 })
 
 local Tab = Window:CreateTab("Main", 4483362458)
-
 local Section = Tab:CreateSection("Auto Nightmare Booster Chest")
 
--- Status text (hiển thị trạng thái hiện tại)
+-- Status text
 local StatusLabel = Tab:CreateLabel("Trạng thái: Skip Anim OFF | Auto Open OFF")
 
--- Toggle Skip Animation (mặc định OFF)
-local ToggleSkip = Tab:CreateToggle({
-    Name = "Skip Animation (Instant)",
-    CurrentValue = false,
-    Flag = "SkipAnim",
-    Callback = function(Value)
-        getgenv().SkipEnabled = Value
-        Rayfield:Notify({
-            Title = "Skip Animation",
-            Content = Value and "BẬT - Anim chạy siêu nhanh!" or "TẮT",
-            Duration = 2
-        })
-        UpdateStatus()
-    end,
-})
-
--- Toggle Auto Open (mặc định OFF)
-local ToggleAuto = Tab:CreateToggle({
-    Name = "Auto Open 5x Nightmare Booster",
-    CurrentValue = false,
-    Flag = "AutoOpen",
-    Callback = function(Value)
-        getgenv().AutoEnabled = Value
-        Rayfield:Notify({
-            Title = "Auto Open",
-            Content = Value and "BẬT - Mở 5x mỗi 1 giây!" or "TẮT auto",
-            Duration = 2
-        })
-        UpdateStatus()
-    end,
-})
-
--- Nút Manual Open
-local ButtonManual = Tab:CreateButton({
-    Name = "Mở 5x Nightmare Booster Ngay",
-    Callback = function()
-        pcall(function()
-            game:GetService("ReplicatedStorage").Systems.ChestShop.OpenChest:InvokeServer("NightmareBoosterChest", 5)
-        end)
-        Rayfield:Notify({
-            Title = "Manual",
-            Content = "Đã gọi mở 5x Nightmare Booster!",
-            Duration = 2
-        })
-    end,
-})
-
--- Nút Stop All
-local ButtonStopAll = Tab:CreateButton({
-    Name = "TẮT TẤT CẢ (Stop All)",
-    Callback = function()
-        getgenv().SkipEnabled = false
-        getgenv().AutoEnabled = false
-        ToggleSkip:Set(false)
-        ToggleAuto:Set(false)
-        Rayfield:Notify({
-            Title = "Stop All",
-            Content = "Đã tắt Skip Anim và Auto Open!",
-            Duration = 3
-        })
-        UpdateStatus()
-    end,
-})
-
--- Hàm cập nhật status label
+-- Hàm UpdateStatus (di chuyển lên trước cho an toàn)
 local function UpdateStatus()
     local skipStatus = getgenv().SkipEnabled and "ON" or "OFF"
     local autoStatus = getgenv().AutoEnabled and "ON" or "OFF"
     StatusLabel:Set("Trạng thái: Skip Anim " .. skipStatus .. " | Auto Open " .. autoStatus)
 end
 
--- Skip anim logic
-local RunService = game:GetService("RunService")
-RunService.Heartbeat:Connect(function()
-    if not getgenv().SkipEnabled then return end
-    for _, obj in workspace:GetDescendants() do
-        if obj:IsA("AnimationTrack") and obj.IsPlaying then
+-- Toggle Skip Animation (OPTIMIZED - không lag nữa)
+local ToggleSkip = Tab:CreateToggle({
+    Name = "Skip Animation (Instant - No Lag)",
+    CurrentValue = false,
+    Flag = "SkipAnim",
+    Callback = function(Value)
+        getgenv().SkipEnabled = Value
+        if Value then
+            -- One-time scan existing anims (nhanh, chỉ 1 lần)
+            for _, obj in workspace:GetDescendants() do
+                if obj:IsA("AnimationTrack") and obj.IsPlaying then
+                    pcall(function() obj:AdjustSpeed(100) end)
+                end
+            end
+        end
+        Rayfield:Notify({
+            Title = "Skip Animation",
+            Content = Value and "BẬT - Siêu nhanh & NO LAG!" or "TẮT",
+            Duration = 2
+        })
+        UpdateStatus()
+    end,
+})
+
+-- Toggle Auto Open
+local ToggleAuto = Tab:CreateToggle({
+    Name = "Auto Open 5x Nightmare Booster (1s)",
+    CurrentValue = false,
+    Flag = "AutoOpen",
+    Callback = function(Value)
+        getgenv().AutoEnabled = Value
+        Rayfield:Notify({
+            Title = "Auto Open",
+            Content = Value and "BẬT - Mở 5x mỗi giây!" or "TẮT",
+            Duration = 2
+        })
+        UpdateStatus()
+    end,
+})
+
+-- Manual
+local ButtonManual = Tab:CreateButton({
+    Name = "Mở 5x Ngay (Manual)",
+    Callback = function()
+        pcall(function()
+            game:GetService("ReplicatedStorage").Systems.ChestShop.OpenChest:InvokeServer("NightmareBoosterChest", 5)
+        end)
+        Rayfield:Notify({Title = "Manual", Content = "Đã mở 5x!", Duration = 2})
+    end,
+})
+
+-- Stop All
+local ButtonStopAll = Tab:CreateButton({
+    Name = "STOP TẤT CẢ",
+    Callback = function()
+        getgenv().SkipEnabled = false
+        getgenv().AutoEnabled = false
+        ToggleSkip:Set(false)
+        ToggleAuto:Set(false)
+        Rayfield:Notify({Title = "Stopped", Content = "Tắt hết!", Duration = 3})
+        UpdateStatus()
+    end,
+})
+
+-- OPTIMIZED Skip Anim Logic (NO LAG)
+local function SpeedAnim(obj)
+    if obj:IsA("AnimationTrack") then
+        if obj.IsPlaying then
             pcall(function() obj:AdjustSpeed(100) end)
         end
-    end
-end)
-
-workspace.DescendantAdded:Connect(function(obj)
-    if obj:IsA("AnimationTrack") then
         obj:GetPropertyChangedSignal("IsPlaying"):Connect(function()
             if obj.IsPlaying and getgenv().SkipEnabled then
                 pcall(function() obj:AdjustSpeed(100) end)
             end
         end)
     end
-end)
+end
 
--- Kill Tween
+workspace.DescendantAdded:Connect(SpeedAnim)  -- Global cho new anims
+
+-- Kill Tween (giữ nguyên, tốt)
 local mt = getrawmetatable(game)
 local old = mt.__namecall
 setreadonly(mt, false)
@@ -119,7 +120,7 @@ mt.__namecall = newcclosure(function(self, ...)
     if getnamecallmethod() == "Play" and self.ClassName == "Tween" then
         self:Cancel()
         if self.Instance and self.Goal then
-            for prop, val in self.Goal do
+            for prop, val in pairs(self.Goal) do  -- pairs thay vì in (fix nhỏ)
                 pcall(function() self.Instance[prop] = val end)
             end
         end
@@ -129,9 +130,9 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 setreadonly(mt, true)
 
--- Auto loop
+-- Auto Loop (thêm random nhẹ anti-detect)
 spawn(function()
-    while wait(1) do
+    while wait(math.random(80,120)/100) do  -- ~1s random
         if getgenv().AutoEnabled then
             pcall(function()
                 game:GetService("ReplicatedStorage").Systems.ChestShop.OpenChest:InvokeServer("NightmareBoosterChest", 5)
@@ -140,13 +141,13 @@ spawn(function()
     end
 end)
 
--- Khởi tạo mặc định OFF
+-- Init
 getgenv().SkipEnabled = false
 getgenv().AutoEnabled = false
 UpdateStatus()
 
 Rayfield:Notify({
-    Title = "Hub Loaded!",
-    Content = "Tất cả tính năng mặc định OFF. Mở Nightmare Shop rồi bật toggle nếu cần!",
+    Title = "Hub v2 Loaded! ✅",
+    Content = "Fixed lag + multiple GUI. Vào Chest Shop → Bật Auto Open farm ngay!",
     Duration = 5
 })
