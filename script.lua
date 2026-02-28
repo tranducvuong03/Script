@@ -9,56 +9,88 @@ local Window = Rayfield:CreateWindow({
         FolderName = "DH_Hub",
         FileName = "Config"
     },
-    KeySystem = false  -- Bật key nếu muốn sau này
+    KeySystem = false
 })
 
-local Tab = Window:CreateTab("Main", 4483362458)  -- Icon Lucide hoặc Roblox asset id
+local Tab = Window:CreateTab("Main", 4483362458)
 
 local Section = Tab:CreateSection("Auto Nightmare Booster Chest")
 
+-- Status text (hiển thị trạng thái hiện tại)
+local StatusLabel = Tab:CreateLabel("Trạng thái: Skip Anim OFF | Auto Open OFF")
+
+-- Toggle Skip Animation (mặc định OFF)
 local ToggleSkip = Tab:CreateToggle({
     Name = "Skip Animation (Instant)",
-    CurrentValue = true,
+    CurrentValue = false,
     Flag = "SkipAnim",
     Callback = function(Value)
         getgenv().SkipEnabled = Value
         Rayfield:Notify({
-            Title = "Skip Anim",
-            Content = Value and "ON - Anim siêu nhanh!" or "OFF",
+            Title = "Skip Animation",
+            Content = Value and "BẬT - Anim chạy siêu nhanh!" or "TẮT",
             Duration = 2
         })
+        UpdateStatus()
     end,
 })
 
+-- Toggle Auto Open (mặc định OFF)
 local ToggleAuto = Tab:CreateToggle({
     Name = "Auto Open 5x Nightmare Booster",
-    CurrentValue = true,
+    CurrentValue = false,
     Flag = "AutoOpen",
     Callback = function(Value)
         getgenv().AutoEnabled = Value
         Rayfield:Notify({
             Title = "Auto Open",
-            Content = Value and "Bắt đầu auto mở 5x mỗi 1s!" or "Tắt auto",
+            Content = Value and "BẬT - Mở 5x mỗi 1 giây!" or "TẮT auto",
             Duration = 2
         })
+        UpdateStatus()
     end,
 })
 
+-- Nút Manual Open
 local ButtonManual = Tab:CreateButton({
-    Name = "Open 5x Nightmare Booster Now",
+    Name = "Mở 5x Nightmare Booster Ngay",
     Callback = function()
         pcall(function()
             game:GetService("ReplicatedStorage").Systems.ChestShop.OpenChest:InvokeServer("NightmareBoosterChest", 5)
         end)
         Rayfield:Notify({
-            Title = "Manual Open",
+            Title = "Manual",
             Content = "Đã gọi mở 5x Nightmare Booster!",
             Duration = 2
         })
     end,
 })
 
--- Skip anim logic (luôn chạy nếu toggle on)
+-- Nút Stop All
+local ButtonStopAll = Tab:CreateButton({
+    Name = "TẮT TẤT CẢ (Stop All)",
+    Callback = function()
+        getgenv().SkipEnabled = false
+        getgenv().AutoEnabled = false
+        ToggleSkip:Set(false)
+        ToggleAuto:Set(false)
+        Rayfield:Notify({
+            Title = "Stop All",
+            Content = "Đã tắt Skip Anim và Auto Open!",
+            Duration = 3
+        })
+        UpdateStatus()
+    end,
+})
+
+-- Hàm cập nhật status label
+local function UpdateStatus()
+    local skipStatus = getgenv().SkipEnabled and "ON" or "OFF"
+    local autoStatus = getgenv().AutoEnabled and "ON" or "OFF"
+    StatusLabel:Set("Trạng thái: Skip Anim " .. skipStatus .. " | Auto Open " .. autoStatus)
+end
+
+-- Skip anim logic
 local RunService = game:GetService("RunService")
 RunService.Heartbeat:Connect(function()
     if not getgenv().SkipEnabled then return end
@@ -69,7 +101,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Cải tiến: Catch anim mới spawn (tốt hơn cho chest animation)
 workspace.DescendantAdded:Connect(function(obj)
     if obj:IsA("AnimationTrack") then
         obj:GetPropertyChangedSignal("IsPlaying"):Connect(function()
@@ -80,7 +111,7 @@ workspace.DescendantAdded:Connect(function(obj)
     end
 end)
 
--- Kill Tween (luôn on để skip spin/open/lid animation)
+-- Kill Tween
 local mt = getrawmetatable(game)
 local old = mt.__namecall
 setreadonly(mt, false)
@@ -98,7 +129,7 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 setreadonly(mt, true)
 
--- Auto loop open 5x
+-- Auto loop
 spawn(function()
     while wait(1) do
         if getgenv().AutoEnabled then
@@ -109,13 +140,13 @@ spawn(function()
     end
 end)
 
--- Init variables (đặt trước để tránh nil)
-getgenv().SkipEnabled = true
-getgenv().AutoEnabled = true
+-- Khởi tạo mặc định OFF
+getgenv().SkipEnabled = false
+getgenv().AutoEnabled = false
+UpdateStatus()
 
 Rayfield:Notify({
     Title = "Hub Loaded!",
-    Content = "Toggle ON/OFF ở tab Main. Mở Nightmare Shop để auto work tốt nhất!",
-    Duration = 4
+    Content = "Tất cả tính năng mặc định OFF. Mở Nightmare Shop rồi bật toggle nếu cần!",
+    Duration = 5
 })
- 
