@@ -118,3 +118,4 @@ Rayfield:Notify({
     Content = "Toggle ON/OFF ở tab Main. Mở Nightmare Shop để auto work tốt nhất!",
     Duration = 4
 })
+ 
