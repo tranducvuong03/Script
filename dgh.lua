@@ -1,8 +1,9 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local TweenService = game:GetService("TweenService")
 
--- BIẾN CẤU HÌNH
+-- BIẾN CẤU HÌNH (GIỮ CŨ + THÊM MỚI)
 local AuraSettings = { Enabled = false, Range = 20 }
+local PetAuraSettings = { Enabled = false, Range = 100 } -- Cấu hình mới cho Pet
 local FarmSettings = { AutoFly = false, Speed = 50, Height = 5 }
 local SelectedConfig = "Default"
 
@@ -24,22 +25,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local MobsFolder = workspace:WaitForChild("Mobs")
 local PlayerAttackRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PlayerAttack")
+local PetDamageRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PetDamage") -- Remote mới cho Pet
 
 -----------------------------------------------------------
--- HÀM KIỂM TRA & DỌN RÁC (CLEANUP LOGIC)
+-- HÀM KIỂM TRA & DỌN RÁC (GIỮ NGUYÊN)
 -----------------------------------------------------------
 local function isValidMob(mob)
     if not mob or not mob.Parent then return false end
-    
     local teamId = mob:GetAttribute("CombatTeamId")
     local killer = mob:GetAttribute("Killer") 
-    
-    -- Nếu đã có Killer, xóa ngay lập tức khỏi Client để giải phóng vòng lặp
     if killer ~= nil then
         mob:Destroy() 
         return false 
     end
-    
     local hum = mob:FindFirstChildOfClass("Humanoid")
     if teamId == "Mob" then
         if not hum or hum.Health > 0 then
@@ -50,7 +48,7 @@ local function isValidMob(mob)
 end
 
 -----------------------------------------------------------
--- HÀM HỖ TRỢ FILE
+-- HÀM HỖ TRỢ FILE (GIỮ NGUYÊN)
 -----------------------------------------------------------
 local function safeListFiles()
     local success, files = pcall(function()
@@ -68,9 +66,9 @@ local function safeListFiles()
 end
 
 -----------------------------------------------------------
--- LOGIC AURA
+-- LOGIC AURA (GIỮ NGUYÊN)
 -----------------------------------------------------------
-local function getAllTargetsInRange()
+local function getAllTargetsInRange(range) -- Thêm tham số range để tái sử dụng
     local targets = {}
     local char = Players.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return targets end
@@ -81,7 +79,7 @@ local function getAllTargetsInRange()
             local root = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
             if root then
                 local dist = (root.Position - myPos).Magnitude
-                if dist <= AuraSettings.Range then
+                if dist <= range then
                     table.insert(targets, mob)
                 end
             end
@@ -91,11 +89,17 @@ local function getAllTargetsInRange()
 end
 
 -----------------------------------------------------------
--- TAB: COMBAT & FARM
+-- TAB: COMBAT & FARM (THÊM CHỨC NĂNG PET)
 -----------------------------------------------------------
 local MainTab = Window:CreateTab("Combat", 4483362458)
+MainTab:CreateSection("Player Combat")
 MainTab:CreateToggle({ Name = "Auto Aura Kill", CurrentValue = false, Flag = "AuraToggle", Callback = function(Value) AuraSettings.Enabled = Value end })
 MainTab:CreateSlider({ Name = "Aura Range", Range = {0, 400}, Increment = 1, Suffix = "Studs", CurrentValue = 20, Flag = "AuraRangeSlider", Callback = function(Value) AuraSettings.Range = Value end })
+
+-- PHẦN MỚI CHO PET TRONG TAB COMBAT
+MainTab:CreateSection("Pet Combat")
+MainTab:CreateToggle({ Name = "Auto Pet Aura", CurrentValue = false, Flag = "PetAuraToggle", Callback = function(Value) PetAuraSettings.Enabled = Value end })
+MainTab:CreateSlider({ Name = "Pet Aura Range", Range = {0, 500}, Increment = 5, Suffix = "Studs", CurrentValue = 100, Flag = "PetAuraRange", Callback = function(Value) PetAuraSettings.Range = Value end })
 
 local FarmTab = Window:CreateTab("Farm", 4483362458)
 FarmTab:CreateToggle({ Name = "Auto Fly to Mob", CurrentValue = false, Flag = "FlyToggle", Callback = function(Value) FarmSettings.AutoFly = Value end })
@@ -103,7 +107,7 @@ FarmTab:CreateSlider({ Name = "Fly Speed", Range = {10, 300}, Increment = 5, Suf
 FarmTab:CreateSlider({ Name = "Fly Height", Range = {-10, 50}, Increment = 1, Suffix = "Studs", CurrentValue = 5, Flag = "FlyHeightSlider", Callback = function(Value) FarmSettings.Height = Value end })
 
 -----------------------------------------------------------
--- TAB: SETTINGS
+-- TAB: SETTINGS (GIỮ NGUYÊN)
 -----------------------------------------------------------
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 SettingsTab:CreateSection("Config Management")
@@ -158,15 +162,37 @@ SettingsTab:CreateButton({
 })
 
 -----------------------------------------------------------
--- VÒNG LẶP THỰC THI (LOOPS)
+-- VÒNG LẶP THỰC THI (GIỮ CŨ + THÊM MỚI)
 -----------------------------------------------------------
+
+-- 1. Vòng lặp Player Aura (GIỮ NGUYÊN)
 task.spawn(function()
     while true do
         task.wait(0.2)
         if AuraSettings.Enabled then
-            local nearbyMobs = getAllTargetsInRange()
+            local nearbyMobs = getAllTargetsInRange(AuraSettings.Range)
             if #nearbyMobs > 0 then
                 PlayerAttackRemote:FireServer(unpack({nearbyMobs}))
+            end
+        end
+    end
+end)
+
+-- 2. VÒNG LẶP PET AURA (MỚI THÊM)
+task.spawn(function()
+    while true do
+        task.wait(0.1) -- Pet thường có tốc độ đánh nhanh hơn
+        if PetAuraSettings.Enabled then
+            local nearbyMobs = getAllTargetsInRange(PetAuraSettings.Range)
+            for _, mob in pairs(nearbyMobs) do
+                -- Logic đòn đánh Pet mà bạn đã cung cấp
+                local args = {
+                    mob, -- Mục tiêu (Nightmare Krampus/Mob)
+                    "chain whip",
+                    ReplicatedStorage:WaitForChild("Mobs"):WaitForChild("Nightmare Krampus"):WaitForChild("Attacks"):WaitForChild("chain whip"):WaitForChild("Box"),
+                    { mob } -- Target List
+                }
+                PetDamageRemote:FireServer(unpack(args))
             end
         end
     end
@@ -175,23 +201,21 @@ end)
 local currentTargetMob = nil 
 local currentTween = nil
 
--- Vòng lặp Fly (Tối ưu phản xạ cực nhanh)
+-- 3. Vòng lặp Fly (GIỮ NGUYÊN)
 task.spawn(function()
     while true do
-        task.wait(0.01) -- Tần suất cực cao để check Killer ngay khi nó xuất hiện
+        task.wait(0.01) 
         
         if FarmSettings.AutoFly then
             local char = Players.LocalPlayer.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if not root then continue end
 
-            -- 1. KIỂM TRA MỤC TIÊU CŨ & XÓA NẾU CÓ KILLER
             if not isValidMob(currentTargetMob) then
                 if currentTween then currentTween:Cancel() currentTween = nil end
                 currentTargetMob = nil
                 
                 local dist = math.huge
-                -- Quét tìm con gần nhất (Vòng lặp này giờ sẽ sạch hơn vì quái chết bị xóa rồi)
                 for _, m in pairs(MobsFolder:GetChildren()) do
                     if isValidMob(m) then
                         local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
@@ -206,7 +230,6 @@ task.spawn(function()
                 end
             end
             
-            -- 2. DI CHUYỂN
             if currentTargetMob then
                 local tRoot = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob.PrimaryPart
                 if tRoot then
