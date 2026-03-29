@@ -165,26 +165,60 @@ end)
 
 -- Vòng lặp Fly (Tween)
 task.spawn(function()
+    local currentTween = nil -- Biến để quản lý tween đang chạy
+    
     while true do
         task.wait(0.1)
+        
         if FarmSettings.AutoFly then
+            local root = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not root then continue end
+
             local targetMob = nil
-            local dist = math.huge
+            local shortestDist = math.huge
+            
+            -- TÌM QUÁI GẦN NHẤT CÓ FOLDER DROPS
             for _, m in pairs(MobsFolder:GetChildren()) do
-                local r = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
-                if r then
-                    local d = (r.Position - Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                    if d < dist then dist = d targetMob = m end
+                -- Điều kiện 1: Có folder Drops
+                -- Điều kiện 2: Còn sống (Health > 0)
+                local drops = m:FindFirstChild("Drops")
+                local hum = m:FindFirstChildOfClass("Humanoid")
+                local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
+                
+                if drops and mRoot and (not hum or hum.Health > 0) then
+                    local d = (mRoot.Position - root.Position).Magnitude
+                    if d < shortestDist then
+                        shortestDist = d
+                        targetMob = m
+                    end
                 end
             end
             
-            local root = Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if targetMob and root then
+            -- THỰC HIỆN BAY
+            if targetMob then
                 local tRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart
                 local tPos = tRoot.CFrame * CFrame.new(0, FarmSettings.Height, 0)
-                local duration = (root.Position - tPos.Position).Magnitude / FarmSettings.Speed
-                TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = tPos}):Play()
-                task.wait(0.1)
+                local distance = (root.Position - tPos.Position).Magnitude
+                
+                -- Chỉ bay nếu khoảng cách đủ xa (tránh giật lag khi đã đứng sát)
+                if distance > 3 then
+                    local duration = distance / FarmSettings.Speed
+                    
+                    -- Hủy Tween cũ nếu có trước khi tạo mới
+                    if currentTween then currentTween:Cancel() end
+                    
+                    currentTween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = tPos})
+                    currentTween:Play()
+                    
+                    -- Đợi một khoảng thời gian tương ứng hoặc chờ quái chết
+                    task.wait(0.2) 
+                end
+            end
+        else
+            -- Nếu tắt AutoFly, dừng Tween ngay lập tức
+            if currentTween then 
+                currentTween:Cancel() 
+                currentTween = nil 
             end
         end
     end
