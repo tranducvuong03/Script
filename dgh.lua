@@ -10,7 +10,7 @@ local Window = Rayfield:CreateWindow({
       FolderName = "UranusConfigs", 
       FileName = "AuraSettings"
    },
-   KeybindSource = "LeftControl" -- Phím tắt để ẩn/hiện Menu
+   KeybindSource = "LeftControl"
 })
 
 -- Biến điều khiển
@@ -25,7 +25,7 @@ local Players = game:GetService("Players")
 local MobsFolder = workspace:WaitForChild("Mobs")
 local PlayerAttackRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PlayerAttack")
 
--- HÀM LOGIC QUÉT MỤC TIÊU (Giữ nguyên bản gốc)
+-- HÀM LOGIC QUÉT MỤC TIÊU
 local function getAllTargetsInRange()
     local targets = {}
     local character = Players.LocalPlayer.Character
@@ -77,7 +77,7 @@ MainTab:CreateSlider({
    end,
 })
 
--- VÒNG LẶP THỰC THI (Logic gốc, không sửa đổi cấu trúc args)
+-- function chạy
 task.spawn(function()
     print("Uranus Hub loaded successfully!")
     while task.wait(0.2) do 
@@ -85,7 +85,6 @@ task.spawn(function()
             local nearbyMobs = getAllTargetsInRange()
             
             if #nearbyMobs > 0 then
-                -- Giữ nguyên cấu trúc args đang chạy ngon của bạn
                 local args = {
                     nearbyMobs 
                 }
