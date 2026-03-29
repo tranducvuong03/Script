@@ -26,17 +26,18 @@ local MobsFolder = workspace:WaitForChild("Mobs")
 local PlayerAttackRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PlayerAttack")
 
 -----------------------------------------------------------
--- HÀM KIỂM TRA MỤC TIÊU (MỚI: DÙNG ATTRIBUTE)
+-- HÀM KIỂM TRA MỤC TIÊU (CẬP NHẬT: CHECK KILLER)
 -----------------------------------------------------------
 local function isValidMob(mob)
     if not mob or not mob.Parent then return false end
     
-    -- Kiểm tra Attribute theo phát hiện của bạn
+    -- Lấy các Attribute cần thiết
     local teamId = mob:GetAttribute("CombatTeamId")
+    local killer = mob:GetAttribute("Killer") -- Attribute đánh dấu quái đã chết
     local hum = mob:FindFirstChildOfClass("Humanoid")
     
-    -- Chỉ chấp nhận nếu là Mob và còn sống
-    if teamId == "Mob" then
+    -- ĐIỀU KIỆN: Là Mob, CHƯA có Killer, và còn máu
+    if teamId == "Mob" and killer == nil then
         if not hum or hum.Health > 0 then
             return true
         end
@@ -63,7 +64,7 @@ local function safeListFiles()
 end
 
 -----------------------------------------------------------
--- LOGIC AURA (CẬP NHẬT THEO ATTRIBUTE)
+-- LOGIC AURA
 -----------------------------------------------------------
 local function getAllTargetsInRange()
     local targets = {}
@@ -72,7 +73,7 @@ local function getAllTargetsInRange()
     local myPos = char.HumanoidRootPart.Position
 
     for _, mob in pairs(MobsFolder:GetChildren()) do
-        if isValidMob(mob) then -- Kiểm tra CombatTeamId tại đây
+        if isValidMob(mob) then 
             local root = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
             if root then
                 local dist = (root.Position - myPos).Magnitude
@@ -181,7 +182,7 @@ task.spawn(function()
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if not root then continue end
 
-            -- 1. KIỂM TRA MỤC TIÊU CŨ (DÙNG ATTRIBUTE)
+            -- 1. KIỂM TRA MỤC TIÊU CŨ (Nếu có Killer -> Invalid ngay)
             local isTargetValid = isValidMob(currentTargetMob)
 
             -- 2. TÌM QUÁI MỚI NẾU CẦN
