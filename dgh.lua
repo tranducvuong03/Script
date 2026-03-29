@@ -9,7 +9,7 @@ local SelectedConfig = "Default"
 -- Khởi tạo Window
 local Window = Rayfield:CreateWindow({
    Name = "Uranus Hub",
-   LoadingTitle = "Fixing Callback Errors...",
+   LoadingTitle = "Optimizing Performance...",
    LoadingSubtitle = "by Uranus",
    ConfigurationSaving = {
       Enabled = true,
@@ -26,16 +26,22 @@ local MobsFolder = workspace:WaitForChild("Mobs")
 local PlayerAttackRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PlayerAttack")
 
 -----------------------------------------------------------
--- HÀM KIỂM TRA MỤC TIÊU
+-- HÀM KIỂM TRA & DỌN RÁC (CLEANUP LOGIC)
 -----------------------------------------------------------
 local function isValidMob(mob)
     if not mob or not mob.Parent then return false end
     
     local teamId = mob:GetAttribute("CombatTeamId")
     local killer = mob:GetAttribute("Killer") 
-    local hum = mob:FindFirstChildOfClass("Humanoid")
     
-    if teamId == "Mob" and killer == nil then
+    -- Nếu đã có Killer, xóa ngay lập tức khỏi Client để giải phóng vòng lặp
+    if killer ~= nil then
+        mob:Destroy() 
+        return false 
+    end
+    
+    local hum = mob:FindFirstChildOfClass("Humanoid")
+    if teamId == "Mob" then
         if not hum or hum.Health > 0 then
             return true
         end
@@ -152,7 +158,7 @@ SettingsTab:CreateButton({
 })
 
 -----------------------------------------------------------
--- VÒNG LẶP THỰC THI
+-- VÒNG LẶP THỰC THI (LOOPS)
 -----------------------------------------------------------
 task.spawn(function()
     while true do
@@ -168,28 +174,24 @@ end)
 
 local currentTargetMob = nil 
 local currentTween = nil
-local attributeConnection = nil
 
--- Vòng lặp Fly (Đã tối ưu thuật toán bẻ lái)
+-- Vòng lặp Fly (Tối ưu phản xạ cực nhanh)
 task.spawn(function()
     while true do
-        task.wait(0.05) -- Tăng tốc độ quét lên để giảm độ trễ phản ứng
+        task.wait(0.01) -- Tần suất cực cao để check Killer ngay khi nó xuất hiện
         
         if FarmSettings.AutoFly then
             local char = Players.LocalPlayer.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if not root then continue end
 
-            -- 1. KIỂM TRA MỤC TIÊU CŨ
+            -- 1. KIỂM TRA MỤC TIÊU CŨ & XÓA NẾU CÓ KILLER
             if not isValidMob(currentTargetMob) then
-                -- Nếu quái chết/có Killer, lập tức hủy Tween và Connection cũ
                 if currentTween then currentTween:Cancel() currentTween = nil end
-                if attributeConnection then attributeConnection:Disconnect() attributeConnection = nil end
-                
                 currentTargetMob = nil
-                local dist = math.huge
                 
-                -- Tìm con gần nhất
+                local dist = math.huge
+                -- Quét tìm con gần nhất (Vòng lặp này giờ sẽ sạch hơn vì quái chết bị xóa rồi)
                 for _, m in pairs(MobsFolder:GetChildren()) do
                     if isValidMob(m) then
                         local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
@@ -202,19 +204,9 @@ task.spawn(function()
                         end
                     end
                 end
-
-                -- Thiết lập "ngắt tức thì" nếu mục tiêu mới bị gán Killer trong khi đang bay tới
-                if currentTargetMob then
-                    attributeConnection = currentTargetMob:GetAttributeChangedSignal("Killer"):Connect(function()
-                        if currentTween then 
-                            currentTween:Cancel() 
-                            currentTween = nil 
-                        end
-                    end)
-                end
             end
             
-            -- 2. XỬ LÝ DI CHUYỂN
+            -- 2. DI CHUYỂN
             if currentTargetMob then
                 local tRoot = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob.PrimaryPart
                 if tRoot then
@@ -222,7 +214,6 @@ task.spawn(function()
                     local distanceToPoint = (root.Position - tPos.Position).Magnitude
 
                     if distanceToPoint > 2 then
-                        -- Luôn cập nhật Tween nếu vị trí quái thay đổi (đối với quái di chuyển)
                         if not currentTween or (currentTween.PlaybackState ~= Enum.PlaybackState.Playing) then
                             local duration = distanceToPoint / FarmSettings.Speed
                             currentTween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = tPos})
@@ -232,9 +223,7 @@ task.spawn(function()
                 end
             end
         else
-            -- Cleanup khi tắt Fly
             if currentTween then currentTween:Cancel() currentTween = nil end
-            if attributeConnection then attributeConnection:Disconnect() attributeConnection = nil end
             currentTargetMob = nil
         end
     end
