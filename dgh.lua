@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Khởi tạo Window
+-- Khởi tạo Window với tên Uranus Hub
 local Window = Rayfield:CreateWindow({
    Name = "Uranus Hub",
    LoadingTitle = "Loading...",
@@ -9,34 +9,35 @@ local Window = Rayfield:CreateWindow({
       Enabled = true,
       FolderName = "UranusConfigs", 
       FileName = "AuraSettings"
-   }
+   },
+   KeybindSource = "LeftControl" -- Phím tắt để ẩn/hiện Menu
 })
 
--- Biến lưu trạng thái
-local _G = {
-    AuraPlayer = false,
-    AuraPet = false,
-    AuraRange = 50,
-    AttackSpeed = 0.4
+-- Biến điều khiển
+local AuraSettings = {
+    Enabled = false,
+    Range = 20
 }
 
--- Services
+-- SERVICES (Giữ nguyên logic đang hoạt động của bạn)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local PlayerAttackRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PlayerAttack")
-local PetAttackRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Mobs"):WaitForChild("RunPetAttackModule")
+local Players = game:GetService("Players")
 local MobsFolder = workspace:WaitForChild("Mobs")
+local PlayerAttackRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PlayerAttack")
 
--- Hàm lấy danh sách quái trong tầm
-local function getNearbyMobs()
+-- HÀM LOGIC QUÉT MỤC TIÊU (Giữ nguyên bản gốc)
+local function getAllTargetsInRange()
     local targets = {}
-    local char = game.Players.LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return targets end
+    local character = Players.LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return targets end
+    
+    local myPos = character.HumanoidRootPart.Position
     
     for _, mob in pairs(MobsFolder:GetChildren()) do
         local root = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
         if root then
-            local dist = (root.Position - char.HumanoidRootPart.Position).Magnitude
-            if dist <= _G.AuraRange then
+            local dist = (root.Position - myPos).Magnitude
+            if dist <= AuraSettings.Range then
                 local hum = mob:FindFirstChildOfClass("Humanoid")
                 if not hum or hum.Health > 0 then
                     table.insert(targets, mob)
@@ -47,66 +48,49 @@ local function getNearbyMobs()
     return targets
 end
 
--- Tab Chính
-local MainTab = Window:CreateTab("Aura Settings", 4483362458)
+-- TẠO TAB
+local MainTab = Window:CreateTab("Main", 4483362458)
 
--- Bật/Tắt Aura Player
+-- Nút Bật/Tắt
 MainTab:CreateToggle({
-   Name = "Auto Player Attack",
+   Name = "Auto Aura Kill",
    CurrentValue = false,
    Callback = function(Value)
-      _G.AuraPlayer = Value
+      AuraSettings.Enabled = Value
+      if Value then
+          Rayfield:Notify({Title = "Uranus Hub", Content = "Aura đã được KÍCH HOẠT!", Duration = 2})
+      else
+          Rayfield:Notify({Title = "Uranus Hub", Content = "Aura đã TẮT!", Duration = 2})
+      end
    end,
 })
 
--- Bật/Tắt Aura Pet
-MainTab:CreateToggle({
-   Name = "Auto Pet Attack (Sack of Torment)",
-   CurrentValue = false,
-   Callback = function(Value)
-      _G.AuraPet = Value
-   end,
-})
-
--- Thanh kéo khoảng cách (Max 200)
+-- Thanh kéo khoảng cách
 MainTab:CreateSlider({
-   Name = "Aura Range (Khoảng cách)",
+   Name = "Aura Range",
    Range = {0, 200},
-   Increment = 5,
+   Increment = 1,
    Suffix = "Studs",
-   CurrentValue = 50,
-   Flag = "RangeSlider", 
+   CurrentValue = 20,
    Callback = function(Value)
-      _G.AuraRange = Value
+      AuraSettings.Range = Value
    end,
 })
 
--- Vòng lặp thực thi (Main Loop)
+-- VÒNG LẶP THỰC THI (Logic gốc, không sửa đổi cấu trúc args)
 task.spawn(function()
-    while task.wait(_G.AttackSpeed) do
-        local targets = getNearbyMobs()
-        if #targets > 0 then
-            -- Thực thi Aura Player
-            if _G.AuraPlayer then
-                PlayerAttackRemote:FireServer({targets})
-            end
+    print("Uranus Hub loaded successfully!")
+    while task.wait(0.2) do 
+        if AuraSettings.Enabled then
+            local nearbyMobs = getAllTargetsInRange()
             
-            -- Thực thi Aura Pet (Target con gần nhất)
-            if _G.AuraPet then
+            if #nearbyMobs > 0 then
+                -- Giữ nguyên cấu trúc args đang chạy ngon của bạn
                 local args = {
-                    targets[1],
-                    "sack of torment",
-                    Instance.new("Model")
+                    nearbyMobs 
                 }
-                PetAttackRemote:FireServer(unpack(args))
+                PlayerAttackRemote:FireServer(unpack(args))
             end
         end
     end
 end)
-
-Rayfield:Notify({
-   Title = "Thành công!",
-   Content = "Script Aura đã sẵn sàng. Chúc bạn farm vui vẻ!",
-   Duration = 5,
-   Image = 4483362458,
-})
