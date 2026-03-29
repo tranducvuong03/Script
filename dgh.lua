@@ -92,17 +92,27 @@ SettingsTab:CreateInput({
    end,
 })
 
--- Nút Tạo/Ghi đè (Đã fix callback error)
+-- Nút Tạo/Ghi đè
 SettingsTab:CreateButton({
    Name = "Save / Create Config",
    Callback = function()
-      if SelectedConfig == "" or SelectedConfig == nil then
-         Rayfield:Notify({Title = "Lỗi", Content = "Vui lòng nhập tên Config trước!", Duration = 3})
+      if SelectedConfig == "" or SelectedConfig == "Default" then
+          Rayfield:Notify({Title = "Lỗi", Content = "Vui lòng nhập tên Config hợp lệ!", Duration = 3})
       else
-         -- Ép Rayfield nhận tên file mới
-         Rayfield.ConfigurationSaving.FileName = SelectedConfig
-         Rayfield:SaveConfiguration()
-         Rayfield:Notify({Title = "Uranus Hub", Content = "Đã lưu: " .. SelectedConfig, Duration = 2})
+          -- Thay vì ghi đè biến hệ thống, hãy kiểm tra tính tồn tại của folder
+          if not isfolder("UranusConfigs") then makefolder("UranusConfigs") end
+          
+          -- Một số phiên bản Rayfield cũ không hỗ trợ đổi FileName runtime
+          -- Bạn nên dùng tên file cố định hoặc viết hàm ghi đè thủ công qua writefile
+          Rayfield:SaveConfiguration() 
+          
+          -- Sau khi lưu, đổi tên file vừa tạo trong folder (Trick cho Rayfield)
+          local oldPath = "UranusConfigs/MainConfig.json"
+          local newPath = "UranusConfigs/" .. SelectedConfig .. ".json"
+          if isfile(oldPath) then
+              writefile(newPath, readfile(oldPath))
+              Rayfield:Notify({Title = "Thành công", Content = "Đã lưu config: " .. SelectedConfig, Duration = 2})
+          end
       end
    end,
 })
