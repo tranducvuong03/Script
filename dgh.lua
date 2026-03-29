@@ -179,15 +179,17 @@ task.spawn(function()
             local dist = math.huge
             
             -- DUYỆT TÌM MỤC TIÊU ƯU TIÊN
+            -- DUYỆT TÌM MỤC TIÊU ƯU TIÊN (CHỈ CHỌN MOB CÓ DROPS HOẶC BOSS)
             for _, m in pairs(MobsFolder:GetChildren()) do
                 local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
                 local hum = m:FindFirstChildOfClass("Humanoid")
                 
                 if mRoot and (not hum or hum.Health > 0) then
-                    -- ĐIỀU KIỆN LỌC: Có folder Drops HOẶC Tên có chữ "Boss"
-                    local isBoss = string.find(string.lower(m.Name), "boss")
+                    -- KIỂM TRA OBJECT BÊN TRONG (FOLDER/VALUE/PART)
                     local hasDrops = m:FindFirstChild("Drops")
+                    local isBoss   = m:FindFirstChild("BOSS") -- Tìm object tên BOSS bên trong Mob
                     
+                    -- Nếu thỏa mãn 1 trong 2 điều kiện thì mới bay tới
                     if hasDrops or isBoss then
                         local d = (mRoot.Position - root.Position).Magnitude
                         if d < dist then 
