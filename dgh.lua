@@ -4,7 +4,7 @@ local TweenService = game:GetService("TweenService")
 -- BIẾN CẤU HÌNH
 local AuraSettings = { Enabled = false, Range = 20 }
 local FarmSettings = { AutoFly = false, Speed = 50, Height = 5 }
-local SelectedConfig = "Default" -- Đặt mặc định để tránh nil lỗi callback
+local SelectedConfig = "Default"
 
 -- Khởi tạo Window
 local Window = Rayfield:CreateWindow({
@@ -26,6 +26,25 @@ local MobsFolder = workspace:WaitForChild("Mobs")
 local PlayerAttackRemote = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PlayerAttack")
 
 -----------------------------------------------------------
+-- HÀM KIỂM TRA MỤC TIÊU (MỚI: DÙNG ATTRIBUTE)
+-----------------------------------------------------------
+local function isValidMob(mob)
+    if not mob or not mob.Parent then return false end
+    
+    -- Kiểm tra Attribute theo phát hiện của bạn
+    local teamId = mob:GetAttribute("CombatTeamId")
+    local hum = mob:FindFirstChildOfClass("Humanoid")
+    
+    -- Chỉ chấp nhận nếu là Mob và còn sống
+    if teamId == "Mob" then
+        if not hum or hum.Health > 0 then
+            return true
+        end
+    end
+    return false
+end
+
+-----------------------------------------------------------
 -- HÀM HỖ TRỢ FILE (AN TOÀN)
 -----------------------------------------------------------
 local function safeListFiles()
@@ -44,20 +63,22 @@ local function safeListFiles()
 end
 
 -----------------------------------------------------------
--- LOGIC AURA GỐC (GIỮ NGUYÊN)
+-- LOGIC AURA (CẬP NHẬT THEO ATTRIBUTE)
 -----------------------------------------------------------
 local function getAllTargetsInRange()
     local targets = {}
     local char = Players.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return targets end
     local myPos = char.HumanoidRootPart.Position
+
     for _, mob in pairs(MobsFolder:GetChildren()) do
-        local root = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
-        if root then
-            local dist = (root.Position - myPos).Magnitude
-            if dist <= AuraSettings.Range then
-                local hum = mob:FindFirstChildOfClass("Humanoid")
-                if not hum or hum.Health > 0 then table.insert(targets, mob) end
+        if isValidMob(mob) then -- Kiểm tra CombatTeamId tại đây
+            local root = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+            if root then
+                local dist = (root.Position - myPos).Magnitude
+                if dist <= AuraSettings.Range then
+                    table.insert(targets, mob)
+                end
             end
         end
     end
@@ -77,36 +98,25 @@ FarmTab:CreateSlider({ Name = "Fly Speed", Range = {10, 300}, Increment = 5, Suf
 FarmTab:CreateSlider({ Name = "Fly Height", Range = {-10, 50}, Increment = 1, Suffix = "Studs", CurrentValue = 5, Flag = "FlyHeightSlider", Callback = function(Value) FarmSettings.Height = Value end })
 
 -----------------------------------------------------------
--- TAB: SETTINGS (FIXED CALLBACK)
+-- TAB: SETTINGS
 -----------------------------------------------------------
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
-
 SettingsTab:CreateSection("Config Management")
 
--- Ô nhập tên Config
 SettingsTab:CreateInput({
    Name = "Config Name",
    PlaceholderText = "Nhập tên file...",
-   Callback = function(Text)
-      SelectedConfig = Text
-   end,
+   Callback = function(Text) SelectedConfig = Text end,
 })
 
--- Nút Tạo/Ghi đè
 SettingsTab:CreateButton({
    Name = "Save / Create Config",
    Callback = function()
       if SelectedConfig == "" or SelectedConfig == "Default" then
           Rayfield:Notify({Title = "Lỗi", Content = "Vui lòng nhập tên Config hợp lệ!", Duration = 3})
       else
-          -- Thay vì ghi đè biến hệ thống, hãy kiểm tra tính tồn tại của folder
           if not isfolder("UranusConfigs") then makefolder("UranusConfigs") end
-          
-          -- Một số phiên bản Rayfield cũ không hỗ trợ đổi FileName runtime
-          -- Bạn nên dùng tên file cố định hoặc viết hàm ghi đè thủ công qua writefile
           Rayfield:SaveConfiguration() 
-          
-          -- Sau khi lưu, đổi tên file vừa tạo trong folder (Trick cho Rayfield)
           local oldPath = "UranusConfigs/MainConfig.json"
           local newPath = "UranusConfigs/" .. SelectedConfig .. ".json"
           if isfile(oldPath) then
@@ -117,21 +127,16 @@ SettingsTab:CreateButton({
    end,
 })
 
--- Dropdown chọn file
 local ConfigDropdown = SettingsTab:CreateDropdown({
    Name = "Chọn Config có sẵn",
    Options = safeListFiles(),
    CurrentOption = "",
-   Callback = function(Option)
-      SelectedConfig = Option
-   end,
+   Callback = function(Option) SelectedConfig = Option end,
 })
 
 SettingsTab:CreateButton({
    Name = "Làm mới danh sách",
-   Callback = function()
-      ConfigDropdown:Set(safeListFiles())
-   end,
+   Callback = function() ConfigDropdown:Set(safeListFiles()) end,
 })
 
 SettingsTab:CreateButton({
@@ -156,14 +161,12 @@ task.spawn(function()
         if AuraSettings.Enabled then
             local nearbyMobs = getAllTargetsInRange()
             if #nearbyMobs > 0 then
-                -- LOGIC GỐC CỦA BẠN (Dùng unpack)
                 PlayerAttackRemote:FireServer(unpack({nearbyMobs}))
             end
         end
     end
 end)
 
--- Thêm một biến cục bộ bên ngoài vòng lặp để khóa mục tiêu
 local currentTargetMob = nil 
 
 -- Vòng lặp Fly
@@ -178,30 +181,18 @@ task.spawn(function()
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if not root then continue end
 
-            -- 1. KIỂM TRA XEM MỤC TIÊU CŨ CÒN DÙNG ĐƯỢC KHÔNG
-            local isTargetValid = false
-            if currentTargetMob and currentTargetMob.Parent == MobsFolder then
-                local hum = currentTargetMob:FindFirstChildOfClass("Humanoid")
-                local mRoot = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob.PrimaryPart
-                -- Quái còn sống và vẫn thỏa mãn là Boss hoặc có Drops
-                if mRoot and (not hum or hum.Health > 0) then
-                    if currentTargetMob:FindFirstChild("Drops") or currentTargetMob:FindFirstChild("BOSS") then
-                        isTargetValid = true
-                    end
-                end
-            end
+            -- 1. KIỂM TRA MỤC TIÊU CŨ (DÙNG ATTRIBUTE)
+            local isTargetValid = isValidMob(currentTargetMob)
 
-            -- 2. NẾU KHÔNG CÓ MỤC TIÊU HOẶC MỤC TIÊU CŨ CHẾT -> MỚI ĐI QUÉT TÌM QUÁI MỚI
+            -- 2. TÌM QUÁI MỚI NẾU CẦN
             if not isTargetValid then
                 currentTargetMob = nil
                 local dist = math.huge
                 
                 for _, m in pairs(MobsFolder:GetChildren()) do
-                    local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
-                    local hum = m:FindFirstChildOfClass("Humanoid")
-                    
-                    if mRoot and (not hum or hum.Health > 0) then
-                        if m:FindFirstChild("Drops") or m:FindFirstChild("BOSS") then
+                    if isValidMob(m) then
+                        local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
+                        if mRoot then
                             local d = (mRoot.Position - root.Position).Magnitude
                             if d < dist then 
                                 dist = d 
@@ -213,7 +204,7 @@ task.spawn(function()
                 if currentTween then currentTween:Cancel() end
             end
             
-            -- 3. XỬ LÝ DI CHUYỂN MƯỢT MÀ
+            -- 3. XỬ LÝ DI CHUYỂN
             if currentTargetMob then
                 local tRoot = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob.PrimaryPart
                 local tPos = tRoot.CFrame * CFrame.new(0, FarmSettings.Height, 0)
@@ -229,7 +220,6 @@ task.spawn(function()
                 end
             end
         else
-            -- Nếu tắt AutoFly, dọn dẹp
             if currentTween then 
                 currentTween:Cancel() 
                 currentTween = nil 
