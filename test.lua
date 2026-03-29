@@ -1,55 +1,60 @@
--- Thiết lập biến điều khiển
+-- Biến điều khiển
 getgenv().AutoAuraPet = true
 
--- Các biến dịch vụ (Cache để chạy nhanh hơn)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local MobsFolder = workspace:WaitForChild("Mobs")
+local Players = game:GetService("Players")
+local lplr = Players.LocalPlayer
 
--- Remote Events
-local RunPetAttack = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Mobs"):WaitForChild("RunPetAttackModule")
-local PetDamage = ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PetDamage")
+-- Tìm một con quái bất kỳ làm "Mồi" nếu TargetDummy không tồn tại
+local function getDummy()
+    return workspace:WaitForChild("Mobs"):FindFirstChild("TargetDummy") or workspace:WaitForChild("Mobs"):FindFirstChildOfClass("Model")
+end
 
--- Hàm thực thi đòn đánh
-local function ExecuteAttack()
-    -- Tìm mục tiêu chính (Nightmare Krampus)
-    local mainTarget = MobsFolder:FindFirstChild("Nightmare Krampus")
-    -- Tìm mục tiêu phụ (TargetDummy - Dùng để bypass check sát thương của game)
-    local dummyTarget = MobsFolder:FindFirstChild("TargetDummy")
+-- Tìm con Pet thật của bạn (Rất quan trọng)
+local function getRealPet()
+    -- Thử tìm trong Workspace theo tên bạn
+    local pet = workspace:FindFirstChild(lplr.Name .. "'s Pet") or workspace:FindFirstChild("Pets"):FindFirstChild(lplr.Name)
+    if not pet then
+        -- Nếu không thấy, lấy đại một cái Model nào đó trong Workspace (Bypass check)
+        pet = lplr.Character or workspace:FindFirstChildOfClass("Model")
+    end
+    return pet
+end
+
+local function Attack()
+    local target = workspace:WaitForChild("Mobs"):FindFirstChild("Nightmare Krampus")
+    local dummy = getDummy()
+    local myPet = getRealPet()
     
-    if mainTarget then
-        -- 1. Kích hoạt Animation/Module tấn công của Pet trước
-        -- Theo mẫu của bạn: {Target, SkillName, NewModel}
-        local runArgs = {
-            mainTarget,
-            "chain whip",
-            Instance.new("Model", nil)
-        }
-        RunPetAttack:FireServer(unpack(runArgs))
+    if target and target:FindFirstChild("HumanoidRootPart") then
+        -- LẤY BOX THẬT TỪ STORAGE
+        local attackBox = ReplicatedStorage:WaitForChild("Mobs"):WaitForChild("Nightmare Krampus"):WaitForChild("Attacks"):WaitForChild("chain whip"):WaitForChild("Box")
 
-        -- 2. Gửi lệnh gây sát thương ngay sau đó
-        -- Theo mẫu của bạn: {Target, SkillName, HitboxBox, {TargetsHit}}
-        local damageArgs = {
-            mainTarget,
+        -- BƯỚC 1: CHẠY MODULE TẤN CÔNG (Dùng Pet thật thay vì Instance.new)
+        local runArgs = {
+            target,
             "chain whip",
-            ReplicatedStorage:WaitForChild("Mobs"):WaitForChild("Nightmare Krampus"):WaitForChild("Attacks"):WaitForChild("chain whip"):WaitForChild("Box"),
-            { dummyTarget or mainTarget } -- Nếu không thấy Dummy, thử dùng chính nó
+            myPet -- Truyền Pet thật của bạn vào đây
         }
-        PetDamage:FireServer(unpack(damageArgs))
+        ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Mobs"):WaitForChild("RunPetAttackModule"):FireServer(unpack(runArgs))
+
+        -- BƯỚC 2: GÂY SÁT THƯƠNG
+        local damageArgs = {
+            target,
+            "chain whip",
+            attackBox,
+            { target, dummy } -- Đưa cả target và dummy vào mảng hit
+        }
+        ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PetDamage"):FireServer(unpack(damageArgs))
     end
 end
 
--- Vòng lặp chạy ngầm
+-- Chạy vòng lặp
 task.spawn(function()
-    print(">>> Auto Aura Pet: Đã khởi động!")
+    warn("Đang thử nghiệm phương pháp Bypass mới...")
     while getgenv().AutoAuraPet do
-        local success, err = pcall(ExecuteAttack)
-        if not success then 
-            warn("Lỗi script: " .. err) 
-        end
-        
-        -- Tốc độ đánh (0.1 là 10 lần/giây). 
-        -- Nếu vẫn không có dmg, hãy thử tăng lên 0.2 hoặc 0.3 để khớp với animation của game.
-        task.wait(0.1) 
+        local success, err = pcall(Attack)
+        if not success then print("Đợi quái xuất hiện...") end
+        task.wait(0.2) -- Thử delay chậm lại một chút (5 lần/giây) để server kịp xử lý
     end
-    print(">>> Auto Aura Pet: Đã dừng.")
 end)
