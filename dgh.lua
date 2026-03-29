@@ -163,66 +163,79 @@ task.spawn(function()
     end
 end)
 
+-- Thêm một biến cục bộ bên ngoài vòng lặp để khóa mục tiêu
+local currentTargetMob = nil 
+
 -- Vòng lặp Fly
 task.spawn(function()
     local currentTween = nil
     
     while true do
-        task.wait(0.1) -- Tần suất kiểm tra mục tiêu
+        task.wait(0.1)
         
         if FarmSettings.AutoFly then
             local char = Players.LocalPlayer.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if not root then continue end
 
-            local targetMob = nil
-            local dist = math.huge
-            
-            -- DUYỆT TÌM MỤC TIÊU ƯU TIÊN
-            -- DUYỆT TÌM MỤC TIÊU ƯU TIÊN (CHỈ CHỌN MOB CÓ DROPS HOẶC BOSS)
-            for _, m in pairs(MobsFolder:GetChildren()) do
-                local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
-                local hum = m:FindFirstChildOfClass("Humanoid")
-                
+            -- 1. KIỂM TRA XEM MỤC TIÊU CŨ CÒN DÙNG ĐƯỢC KHÔNG
+            local isTargetValid = false
+            if currentTargetMob and currentTargetMob.Parent == MobsFolder then
+                local hum = currentTargetMob:FindFirstChildOfClass("Humanoid")
+                local mRoot = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob.PrimaryPart
+                -- Quái còn sống và vẫn thỏa mãn là Boss hoặc có Drops
                 if mRoot and (not hum or hum.Health > 0) then
-                    -- KIỂM TRA OBJECT BÊN TRONG (FOLDER/VALUE/PART)
-                    local hasDrops = m:FindFirstChild("Drops")
-                    local isBoss   = m:FindFirstChild("BOSS") -- Tìm object tên BOSS bên trong Mob
-                    
-                    -- Nếu thỏa mãn 1 trong 2 điều kiện thì mới bay tới
-                    if hasDrops or isBoss then
-                        local d = (mRoot.Position - root.Position).Magnitude
-                        if d < dist then 
-                            dist = d 
-                            targetMob = m 
-                        end
+                    if currentTargetMob:FindFirstChild("Drops") or currentTargetMob:FindFirstChild("BOSS") then
+                        isTargetValid = true
                     end
                 end
             end
+
+            -- 2. NẾU KHÔNG CÓ MỤC TIÊU HOẶC MỤC TIÊU CŨ CHẾT -> MỚI ĐI QUÉT TÌM QUÁI MỚI
+            if not isTargetValid then
+                currentTargetMob = nil
+                local dist = math.huge
+                
+                for _, m in pairs(MobsFolder:GetChildren()) do
+                    local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
+                    local hum = m:FindFirstChildOfClass("Humanoid")
+                    
+                    if mRoot and (not hum or hum.Health > 0) then
+                        if m:FindFirstChild("Drops") or m:FindFirstChild("BOSS") then
+                            local d = (mRoot.Position - root.Position).Magnitude
+                            if d < dist then 
+                                dist = d 
+                                currentTargetMob = m 
+                            end
+                        end
+                    end
+                end
+                if currentTween then currentTween:Cancel() end
+            end
             
-            -- XỬ LÝ DI CHUYỂN (TWEEN)
-            if targetMob then
-                local tRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart
-                -- Tính toán vị trí bay (tạo khoảng cách Height phía trên đầu quái)
+            -- 3. XỬ LÝ DI CHUYỂN MƯỢT MÀ
+            if currentTargetMob then
+                local tRoot = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob.PrimaryPart
                 local tPos = tRoot.CFrame * CFrame.new(0, FarmSettings.Height, 0)
                 
-                -- Chỉ di chuyển nếu khoảng cách > 3 studs để tránh rung lắc
-                if (root.Position - tPos.Position).Magnitude > 3 then
-                    local duration = (root.Position - tPos.Position).Magnitude / FarmSettings.Speed
-                    
-                    -- Hủy tween cũ trước khi tạo cái mới (Tránh lỗi callback/giật lag)
-                    if currentTween then currentTween:Cancel() end
-                    
-                    currentTween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = tPos})
-                    currentTween:Play()
+                local distanceToPoint = (root.Position - tPos.Position).Magnitude
+
+                if distanceToPoint > 3 then
+                    if not currentTween or (currentTween.PlaybackState ~= Enum.PlaybackState.Playing) then
+                        local duration = distanceToPoint / FarmSettings.Speed
+                        currentTween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = tPos})
+                        currentTween:Play()
+                    end
                 end
             end
         else
-            -- Nếu tắt AutoFly, dừng ngay Tween đang chạy
+            -- Nếu tắt AutoFly, dọn dẹp
             if currentTween then 
                 currentTween:Cancel() 
                 currentTween = nil 
             end
+            currentTargetMob = nil
         end
     end
+end)
 end)
