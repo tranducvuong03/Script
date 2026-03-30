@@ -7,7 +7,7 @@ local PetDamage = ReplicatedStorage.Systems.Combat:FindFirstChild("PetDamage")
 local RunPetAttack = ReplicatedStorage.Systems.Mobs:FindFirstChild("RunPetAttackModule")
 
 local RANGE = 60 
-local DELAY = 0.5 
+local DELAY = 0.1 
 
 task.spawn(function()
     while task.wait(DELAY) do
