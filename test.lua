@@ -1,60 +1,53 @@
--- Biến điều khiển
-getgenv().AutoAuraPet = true
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local lplr = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
 
--- Tìm một con quái bất kỳ làm "Mồi" nếu TargetDummy không tồn tại
-local function getDummy()
-    return workspace:WaitForChild("Mobs"):FindFirstChild("TargetDummy") or workspace:WaitForChild("Mobs"):FindFirstChildOfClass("Model")
-end
+-- Các Remote chuẩn từ script của bạn
+local PetDamage = ReplicatedStorage.Systems.Combat:FindFirstChild("PetDamage")
+local RunPetAttack = ReplicatedStorage.Systems.Mobs:FindFirstChild("RunPetAttackModule")
 
--- Tìm con Pet thật của bạn (Rất quan trọng)
-local function getRealPet()
-    -- Thử tìm trong Workspace theo tên bạn
-    local pet = workspace:FindFirstChild(lplr.Name .. "'s Pet") or workspace:FindFirstChild("Pets"):FindFirstChild(lplr.Name)
-    if not pet then
-        -- Nếu không thấy, lấy đại một cái Model nào đó trong Workspace (Bypass check)
-        pet = lplr.Character or workspace:FindFirstChildOfClass("Model")
-    end
-    return pet
-end
+local ATTACK_RANGE = 55 -- Để 55 cho an toàn (Server giới hạn 60)
+local ATTACK_SPEED = 0.5 
 
-local function Attack()
-    local target = workspace:WaitForChild("Mobs"):FindFirstChild("Nightmare Krampus")
-    local dummy = getDummy()
-    local myPet = getRealPet()
-    
-    if target and target:FindFirstChild("HumanoidRootPart") then
-        -- LẤY BOX THẬT TỪ STORAGE
-        local attackBox = ReplicatedStorage:WaitForChild("Mobs"):WaitForChild("Nightmare Krampus"):WaitForChild("Attacks"):WaitForChild("chain whip"):WaitForChild("Box")
-
-        -- BƯỚC 1: CHẠY MODULE TẤN CÔNG (Dùng Pet thật thay vì Instance.new)
-        local runArgs = {
-            target,
-            "chain whip",
-            myPet -- Truyền Pet thật của bạn vào đây
-        }
-        ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Mobs"):WaitForChild("RunPetAttackModule"):FireServer(unpack(runArgs))
-
-        -- BƯỚC 2: GÂY SÁT THƯƠNG
-        local damageArgs = {
-            target,
-            "chain whip",
-            attackBox,
-            { target, dummy } -- Đưa cả target và dummy vào mảng hit
-        }
-        ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Combat"):WaitForChild("PetDamage"):FireServer(unpack(damageArgs))
-    end
-end
-
--- Chạy vòng lặp
 task.spawn(function()
-    warn("Đang thử nghiệm phương pháp Bypass mới...")
-    while getgenv().AutoAuraPet do
-        local success, err = pcall(Attack)
-        if not success then print("Đợi quái xuất hiện...") end
-        task.wait(0.2) -- Thử delay chậm lại một chút (5 lần/giây) để server kịp xử lý
+    while task.wait(ATTACK_SPEED) do
+        -- 1. Tìm Pet của bạn (Lọc theo attribute Player)
+        local myPet = nil
+        for _, mob in pairs(workspace.Mobs:GetChildren()) do
+            if mob:GetAttribute("Player") == player.Name and not mob:GetAttribute("Minion") then
+                myPet = mob
+                break
+            end
+        end
+
+        if not myPet or not myPet.PrimaryPart then continue end
+
+        -- 2. Tìm chiêu thức hợp lệ của Pet trong ReplicatedStorage
+        local petData = ReplicatedStorage.Mobs:FindFirstChild(myPet.Name)
+        local attacks = petData and petData:FindFirstChild("Attacks"):GetChildren()
+        local skill = attacks and attacks[1] -- Lấy chiêu đầu tiên
+        
+        if not skill then continue end
+
+        -- 3. Quét quái vật (CombatTeamId == "Mob")
+        for _, target in pairs(workspace.Mobs:GetChildren()) do
+            if target:GetAttribute("CombatTeamId") == "Mob" and target:GetAttribute("HP") > 0 then
+                local dist = (myPet.PrimaryPart.Position - target.PrimaryPart.Position).Magnitude
+                
+                if dist <= ATTACK_RANGE then
+                    -- Gửi lệnh thực thi đòn đánh (Cấu trúc chuẩn theo line 851 của script Mobs)
+                    -- Tham số: PetModel, TênSkill, TargetModel
+                    RunPetAttack:FireServer(myPet, skill.Name, target)
+                    
+                    -- Gửi lệnh gây sát thương (Cấu trúc chuẩn theo script Combat)
+                    -- Tham số: PetModel, TênSkill, FolderSkill, {TargetTable}
+                    local skillData = skill:FindFirstChild("Box") or skill:FindFirstChild("Circle") or skill
+                    PetDamage:FireServer(myPet, skill.Name, skillData, {target})
+                    
+                    -- Nếu bạn muốn Aura đánh lan (AOE), đừng break. Nếu đánh đơn, hãy break.
+                    break 
+                end
+            end
+        end
     end
 end)
